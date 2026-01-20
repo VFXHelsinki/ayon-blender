@@ -1,23 +1,17 @@
 from __future__ import annotations
-from typing import Optional
+
 from pathlib import Path
+from typing import Optional
 
 import bpy
-
-from ayon_core.pipeline import AYON_CONTAINER_ID
 from ayon_blender.api import plugin
-from ayon_blender.api.lib import (
-    imprint,
-    get_blender_version
-)
 from ayon_blender.api.constants import (
     AYON_CONTAINERS,
     AYON_PROPERTY,
 )
-from ayon_blender.api.pipeline import (
-    add_to_ayon_container,
-    get_ayon_property
-)
+from ayon_blender.api.lib import get_blender_version, imprint
+from ayon_blender.api.pipeline import add_to_ayon_container, get_ayon_property
+from ayon_core.pipeline import AYON_CONTAINER_ID
 
 
 class BlendSceneLoader(plugin.BlenderLoader):
@@ -43,9 +37,10 @@ class BlendSceneLoader(plugin.BlenderLoader):
     def _process_data(self, libpath, group_name, product_type):
         # Append all the data from the .blend file
         names_by_attr: dict[str, list[str]] = {}
-        with bpy.data.libraries.load(
-            libpath, link=False, relative=False
-        ) as (data_from, data_to):
+        with bpy.ops.wm.link(libpath, link=False, relative=False) as (
+            data_from,
+            data_to,
+        ):
             for attr in dir(data_to):
                 values = getattr(data_from, attr)
                 # store copy of list of names because the main list will
@@ -69,8 +64,7 @@ class BlendSceneLoader(plugin.BlenderLoader):
                 data.name = f"{group_name}:{from_name}"
                 members.append(data)
 
-        container = self._get_asset_container(
-            data_to.collections)
+        container = self._get_asset_container(data_to.collections)
         assert container, "No asset group found"
 
         container.name = group_name
@@ -91,8 +85,11 @@ class BlendSceneLoader(plugin.BlenderLoader):
         return container, members
 
     def process_asset(
-        self, context: dict, name: str, namespace: Optional[str] = None,
-        options: Optional[dict] = None
+        self,
+        context: dict,
+        name: str,
+        namespace: Optional[str] = None,
+        options: Optional[dict] = None,
     ) -> Optional[list]:
         """
         Arguments:
@@ -127,7 +124,7 @@ class BlendSceneLoader(plugin.BlenderLoader):
             "schema": "ayon:container-3.0",
             "id": AYON_CONTAINER_ID,
             "name": name,
-            "namespace": namespace or '',
+            "namespace": namespace or "",
             "loader": str(self.__class__.__name__),
             "representation": context["representation"]["id"],
             "libpath": libpath,
@@ -142,7 +139,8 @@ class BlendSceneLoader(plugin.BlenderLoader):
         container[AYON_PROPERTY] = data
 
         objects = [
-            obj for obj in bpy.data.objects
+            obj
+            for obj in bpy.data.objects
             if obj.name.startswith(f"{group_name}:")
         ]
 
@@ -176,7 +174,8 @@ class BlendSceneLoader(plugin.BlenderLoader):
                 member_transforms[member.name] = member.matrix_basis.copy()
             elif isinstance(member, bpy.types.Collection):
                 member_parents = {
-                    c for c in bpy.data.collections if c.user_of_id(member)}
+                    c for c in bpy.data.collections if c.user_of_id(member)
+                }
             else:
                 continue
 

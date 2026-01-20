@@ -1,20 +1,15 @@
 """Load an action in Blender."""
 
-import os
 import logging
+import os
 from typing import Dict, List, Optional
 
 import bpy
+from ayon_blender.api import plugin
+from ayon_blender.api.constants import AYON_PROPERTY
+from ayon_blender.api.pipeline import containerise_existing, metadata_update
 from ayon_core.lib import BoolDef
 from ayon_core.pipeline.load import LoadError
-
-from ayon_blender.api import plugin
-from ayon_blender.api.pipeline import (
-    containerise_existing,
-    metadata_update
-)
-from ayon_blender.api.constants import AYON_PROPERTY
-
 
 logger = logging.getLogger("ayon").getChild("blender").getChild("load_action")
 
@@ -44,8 +39,11 @@ class BlendActionLoader(plugin.BlenderLoader):
     ]
 
     def process_asset(
-        self, context: dict, name: str, namespace: Optional[str] = None,
-        options: Optional[Dict] = None
+        self,
+        context: dict,
+        name: str,
+        namespace: Optional[str] = None,
+        options: Optional[Dict] = None,
     ) -> Optional[List]:
         """
         Arguments:
@@ -71,11 +69,13 @@ class BlendActionLoader(plugin.BlenderLoader):
 
         container_metadata = container.get(AYON_PROPERTY)
 
-
         relative = bpy.context.preferences.filepaths.use_relative_paths
         with bpy.data.libraries.load(
             libpath, link=True, relative=relative
-        ) as (data_from, data_to):
+        ) as (
+            data_from,
+            data_to,
+        ):
             data_to.actions = data_from.actions
         if not data_to.actions:
             raise LoadError(
@@ -97,7 +97,7 @@ class BlendActionLoader(plugin.BlenderLoader):
         container_metadata["action"] = empty_obj.animation_data.action
 
         metadata_update(container, container_metadata)
-        bpy.ops.object.select_all(action='DESELECT')
+        bpy.ops.object.select_all(action="DESELECT")
         self[:] = [empty_obj]
 
         return container
@@ -140,9 +140,7 @@ class BlendActionLoader(plugin.BlenderLoader):
             No nested collections are supported at the moment!
         """
 
-        collection = bpy.data.collections.get(
-            container["objectName"]
-        )
+        collection = bpy.data.collections.get(container["objectName"])
         if not collection:
             return False
 

@@ -1,28 +1,29 @@
-import bpy
 import os
 from typing import Dict, List, Optional, Union
-from ayon_core.lib import BoolDef
-from ayon_blender.api import plugin
 
-from ayon_blender.api.plugin_load import (
-    add_override,
-    load_collection
-)
+import bpy
+from ayon_blender.api import plugin
 from ayon_blender.api.pipeline import (
-    metadata_update,
-    get_container_name,
     containerise,
-    show_message
+    get_container_name,
+    metadata_update,
+    show_message,
 )
+from ayon_blender.api.plugin_load import add_override, load_collection
+from ayon_core.lib import BoolDef
 
 
 class BlendLinkLoader(plugin.BlenderLoader):
     """Link assets from a .blend file."""
 
     product_types = {
-        "model", "camera", "rig",
-        "layout", "blendScene",
-        "animation", "workfile"
+        "model",
+        "camera",
+        "rig",
+        "layout",
+        "blendScene",
+        "animation",
+        "workfile",
     }
     representations = {"blend"}
 
@@ -57,6 +58,9 @@ class BlendLinkLoader(plugin.BlenderLoader):
         group_name = plugin.prepare_scene_name(
             folder_name, product_name, unique_number
         )
+        published_root_name = plugin.prepare_scene_name(
+            folder_name, product_name
+        )
         namespace = namespace or f"{folder_name}_{unique_number}"
         container_name = get_container_name(
             name, namespace, context, suffix="CON"
@@ -65,7 +69,6 @@ class BlendLinkLoader(plugin.BlenderLoader):
         scene_collection = bpy.context.scene.collection
 
         if loaded_collection and group_name in scene_collection.children:
-
             message = (
                 f"Collection {group_name} already loaded, "
                 f"instance to {group_name} is created instead of "
@@ -73,7 +76,7 @@ class BlendLinkLoader(plugin.BlenderLoader):
             )
             show_message(f"Collection {group_name} already loaded", message)
             instance = bpy.data.objects.new(name=group_name, object_data=None)
-            instance.instance_type = 'COLLECTION'
+            instance.instance_type = "COLLECTION"
             instance.instance_collection = loaded_collection
             # Link the instance to the active scene
             bpy.context.scene.collection.objects.link(instance)
@@ -82,7 +85,8 @@ class BlendLinkLoader(plugin.BlenderLoader):
         loaded_collection = load_collection(
             filepath,
             link=True,
-            group_name=group_name
+            lib_container_name=published_root_name,
+            group_name=group_name,
         )
 
         options = options or dict()
@@ -102,7 +106,7 @@ class BlendLinkLoader(plugin.BlenderLoader):
         return container_collection
 
     def exec_update(self, container: Dict, context: Dict):
-        """Update the loaded asset. """
+        """Update the loaded asset."""
         repre = context["representation"]
         collection = container["node"]
         if collection.children:
@@ -117,9 +121,7 @@ class BlendLinkLoader(plugin.BlenderLoader):
         bpy.context.view_layer.update()
 
         # Update container metadata
-        metadata_update(
-            collection, {"representation": str(repre["id"])}
-        )
+        metadata_update(collection, {"representation": str(repre["id"])})
 
     def exec_remove(self, container: Dict) -> bool:
         """Remove existing container from the Blender scene."""
@@ -140,7 +142,8 @@ class BlendLinkLoader(plugin.BlenderLoader):
         return True
 
     def _get_library_from_collection(
-            self, collection: bpy.types.Collection) -> Union[bpy.types.Library, None]:
+        self, collection: bpy.types.Collection
+    ) -> Union[bpy.types.Library, None]:
         """Get the library from the collection."""
 
         for child in collection.children:

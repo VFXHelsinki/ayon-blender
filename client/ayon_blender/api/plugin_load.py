@@ -1,10 +1,11 @@
 import logging
-from typing import Generator, TYPE_CHECKING
+import os
+from typing import TYPE_CHECKING, Generator
 
 import bpy
 from ayon_core.pipeline.load import LoadError
-from ayon_blender.api.pipeline import AVALON_PROPERTY
 
+from ayon_blender.api.pipeline import AVALON_PROPERTY
 
 if TYPE_CHECKING:
     from ayon_core.pipeline.create import CreateContext  # noqa: F401
@@ -30,9 +31,9 @@ def add_override(
     context.view_layer.objects.active = loaded_objects[0]
 
     from .plugin import create_blender_context  # todo: move import
+
     operator_context = create_blender_context(
-        active=loaded_objects[0],
-        selected=loaded_objects
+        active=loaded_objects[0], selected=loaded_objects
     )
 
     # https://blender.stackexchange.com/questions/289245/how-to-make-a-blender-library-override-in-python  # noqa
@@ -96,7 +97,7 @@ def get_overridden_collections_from_reference_collection(
 
 
 def get_asset_container(objects):
-    empties = [obj for obj in objects if obj.type == 'EMPTY']
+    empties = [obj for obj in objects if obj.type == "EMPTY"]
 
     for empty in empties:
         if empty.get(AVALON_PROPERTY) and empty.parent is None:
@@ -106,41 +107,55 @@ def get_asset_container(objects):
 
 
 def load_collection(
-    filepath,
-    link=True,
-    lib_container_name = None,
-    group_name = None
+    filepath, link=True, lib_container_name=None, group_name=None
 ) -> bpy.types.Collection:
     """Load a collection to the scene."""
-    loaded_containers = []
-    asset_container = get_collection(group_name)
-    with bpy.data.libraries.load(filepath, link=link, relative=False) as (
-        data_from,
-        data_to,
-    ):
-        for attr in dir(data_to):
-            setattr(data_to, attr, getattr(data_from, attr))
+    collection_name = lib_container_name or _normalize_root_name(group_name)
+    if not collection_name:
+        raise LoadError("No collection name provided for linking.")
 
-    for coll in data_to.collections:
-        if coll is not None and coll.name not in asset_container.children:
-            asset_container.children.link(coll)
+    if not link:
+        raise LoadError("Only linking is supported in load_collection.")
 
-    for obj in data_to.objects:
-        if obj is not None and obj.name not in asset_container.objects:
-            asset_container.objects.link(obj)
+    directory = os.path.join(filepath, "Collection") + os.sep
+    relative = bpy.context.preferences.filepaths.use_relative_paths
+    existing_collections = set(bpy.data.collections)
 
-    loaded_containers = [asset_container]
+    bpy.ops.wm.link(
+        directory=directory,
+        files=[{"name": collection_name}],
+        relative_path=relative,
+        instance_collections=False,
+        instance_object_data=False,
+    )
 
-    if len(loaded_containers) != 1:
-        for loaded_container in loaded_containers:
-            bpy.data.collections.remove(loaded_container)
+    linked_collection = bpy.data.collections.get(collection_name)
+    if linked_collection is None:
+        linked_candidates = [
+            coll
+            for coll in bpy.data.collections
+            if coll not in existing_collections and coll.library
+        ]
+        if len(linked_candidates) == 1:
+            linked_collection = linked_candidates[0]
+
+    if linked_collection is None:
         raise LoadError(
-            "More then 1 'container' is loaded. That means the publish was "
-            "not correct."
+            f"Collection '{collection_name}' was not linked from {filepath}."
         )
-    container_collection = loaded_containers[0]
 
-    return container_collection
+    return linked_collection
+
+
+def _normalize_root_name(group_name):
+    if not group_name:
+        return None
+
+    parts = group_name.split("_")
+    for index, part in enumerate(parts):
+        if part.isdigit() and len(part) == 2:
+            return "_".join(parts[:index] + parts[index + 1 :])
+    return group_name
 
 
 def get_collection(group_name):
